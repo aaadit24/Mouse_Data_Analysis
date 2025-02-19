@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <link rel="stylesheet" href="styles.css">
     <title>Mouse Data Analysis</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash/4.17.21/lodash.min.js"></script>
@@ -35,6 +36,15 @@
             font-size: 12px;
             display: none;
             z-index: 100;
+        }
+        .data-point {
+            transition: fill 0.2s ease-in-out, stroke-width 0.2s ease-in-out;
+            rx: 5px;
+        }
+        .data-point:hover {
+            stroke: #000;
+            stroke-width: 1.5px;
+            fill-opacity: 0.7; 
         }
         .estrus-marker {
             fill: #ff69b4;
@@ -282,6 +292,7 @@ async function updateVisualization() {
             .on("mouseout", function() {
                 d3.select(".tooltip").style("display", "none");
             });
+            
 
         // Add estrus markers for female mice
         if (gender === 'female') {
