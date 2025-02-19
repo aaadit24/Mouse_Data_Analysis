@@ -2,7 +2,7 @@
 <html>
 <head>
     <link rel="stylesheet" href="styles.css">
-    <title>Mouse Data Analysis</title>
+    <title>Cyclic Shifts: How Estrus Influences Core Body Temperature in Female Mice</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash/4.17.21/lodash.min.js"></script>
     <style>
@@ -15,12 +15,6 @@
             display: flex;
             gap: 15px;
             align-items: center;
-        }
-        select {
-            padding: 5px;
-            border-radius: 4px;
-            border: 1px solid #000;
-            background: white;
         }
         .light-cycle {
             margin-left: 20px;
@@ -46,316 +40,351 @@
             stroke-width: 1.5px;
             fill-opacity: 0.7; 
         }
-        .estrus-marker {
-            fill: #ff69b4;
-            font-size: 12px;
-        }
-        .estrus-legend {
-            font-size: 12px;
-            fill: #000;
-        }
     </style>
 </head>
 <body>
-    <h1>Mouse Data Analysis</h1>
+    <h1>Cyclic Shifts: How Estrus Influences Core Body Temperature in Female Mice</h1>
+    <p>Throughout a 2 week period the temperature of female and male mice are recorded, with their light period being on a 12hr on then off cycle to control daily rhythms.</p>
+    <h4>Female mice experience 4 estrus days within a two-week period. 
+        As you examine each mouse, can you spot the estrus days for female mice and their associated temperature changes?</h4>
     <div class="controls">
         <select id="genderSelect">
             <option value="female">Female</option>
             <option value="male">Male</option>
         </select>
-        <select id="mouseSelect"></select>
-        <select id="metricSelect">
-            <option value="temp">Temperature</option>
-            <option value="act">Activity</option>
-        </select>
+        <button id="playButton">Play</button>
+
+        <input type="range" id="mouseSlider" min="0" max="14" step="1">
+        <span id="selectedMouseLabel">Mouse: f1</span>
         <div class="light-cycle">
             Light cycle: 12h on/12h off<br>
             Starts at hour 0
         </div>
     </div>
+    
     <div id="visualization"></div>
     <div class="tooltip"></div>
+    
+
 
 <script>
-const width = 1200;
-const height = 600;
-const margin = { top: 40, right: 150, bottom: 50, left: 60 };
+    const width = 1200;
+    const height = 600;
+    const margin = { top: 40, right: 150, bottom: 50, left: 60 };
 
-// Create SVG
-const svg = d3.select("#visualization")
-    .append("svg")
-    .attr("width", width)
-    .attr("height", height);
+    const svg = d3.select("#visualization")
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height);
 
-// Initialize scales
-const xScale = d3.scaleLinear()
-    .domain([0, 24])  // Changed to include full range
-    .range([margin.left, width - margin.right]);
+    const xScale = d3.scaleLinear().domain([0, 24]).range([margin.left, width - margin.right]);
+    const yScale = d3.scaleLinear().domain([1, 15]).range([margin.top, height - margin.bottom]);
 
-const yScale = d3.scaleLinear()
-    .domain([1, 15])  // Changed to include full range
-    .range([margin.top, height - margin.bottom]);
+    const tempColorScale = d3.scaleSequential()
+    .domain([35.5, 38.5]) 
+    .interpolator(d3.interpolateRdYlBu); 
 
-// Color scales with gentler gradients
-const activityColorScale = d3.scaleSequential()
-    .domain([0, 100])
-    .interpolator(d3.interpolateOranges);
 
-const tempColorScale = d3.scaleSequential()
-    .domain([35.5, 38.5])
-    .interpolator(t => d3.interpolateRdYlBu(1 - t));  // Reversed for better visual
+    svg.append("g").attr("transform", `translate(0,${height - margin.bottom})`)
+        .call(d3.axisBottom(xScale).ticks(24).tickFormat(d => d + ":00"));
 
-// Create axes
-const xAxis = d3.axisBottom(xScale)
-    .ticks(24)
-    .tickFormat(d => d + ":00");
+    svg.append("g").attr("transform", `translate(${margin.left},0)`)
+        .call(d3.axisLeft(yScale).ticks(14).tickFormat(d => "Day " + d));
 
-const yAxis = d3.axisLeft(yScale)
-    .ticks(14)
-    .tickFormat(d => "Day " + d);
+    function updateMouseSlider() {
+        const gender = d3.select("#genderSelect").property("value");
+        const mouseIds = gender === 'female'
+            ? ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'f13', 'Average']
+            : ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'm11', 'm12', 'm13', 'Average'];
 
-svg.append("g")
-    .attr("transform", `translate(0,${height - margin.bottom})`)
-    .call(xAxis);
-
-svg.append("g")
-    .attr("transform", `translate(${margin.left},0)`)
-    .call(yAxis);
-
-// Add labels
-svg.append("text")
-    .attr("class", "x-label")
-    .attr("text-anchor", "middle")
-    .attr("x", (width - margin.right + margin.left) / 2)
-    .attr("y", height - 10)
-    .text("Hour of Day");
-
-svg.append("text")
-    .attr("class", "y-label")
-    .attr("text-anchor", "middle")
-    .attr("transform", "rotate(-90)")
-    .attr("x", -(height - margin.bottom + margin.top) / 2)
-    .attr("y", 20)
-    .text("Day");
-
-// Add legend
-function addColorLegend(scale, metric) {
-    // Remove existing legend
-    svg.selectAll(".legend").remove();
-
-    const legendWidth = 20;
-    const legendHeight = height - margin.top - margin.bottom;
-    const legendX = width - margin.right + 40;
-
-    // Create gradient
-    const defs = svg.append("defs");
-    const gradient = defs.append("linearGradient")
-        .attr("id", "legend-gradient")
-        .attr("gradientUnits", "userSpaceOnUse")
-        .attr("x1", 0)
-        .attr("x2", 0)
-        .attr("y1", legendHeight)
-        .attr("y2", 0);
-
-    // Add color stops with more intervals for smoother gradient
-    const numStops = 20;  // Increased for smoother gradient
-    for (let i = 0; i <= numStops; i++) {
-        const t = i / numStops;
-        const value = scale.domain()[0] + t * (scale.domain()[1] - scale.domain()[0]);
-        gradient.append("stop")
-            .attr("offset", `${t * 100}%`)
-            .attr("stop-color", scale(value));
+        d3.select("#mouseSlider").attr("max", mouseIds.length - 1).property("value", 0);
+        d3.select("#selectedMouseLabel").text(`Mouse: ${mouseIds[0]}`);
     }
 
-    const legend = svg.append("g")
-        .attr("class", "legend")
-        .attr("transform", `translate(${legendX}, ${margin.top})`);
+    function onMouseSliderChange() {
+        const gender = d3.select("#genderSelect").property("value");
+        const mouseIds = gender === 'female'
+            ? ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'f13', 'Average']
+            : ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'm11', 'm12', 'm13', 'Average'];
 
-    // Add gradient rectangle
-    legend.append("rect")
-        .attr("width", legendWidth)
-        .attr("height", legendHeight)
-        .style("fill", "url(#legend-gradient)");
+        const selectedIndex = parseInt(d3.select("#mouseSlider").property("value"));
+        const selectedMouse = mouseIds[selectedIndex];
 
-    // Add scale axis
-    const legendScale = d3.scaleLinear()
-        .domain(scale.domain())
-        .range([legendHeight, 0]);
+        d3.select("#selectedMouseLabel").text(`Mouse: ${selectedMouse}`);
+        updateVisualization(selectedMouse);
+    }
 
-    const legendAxis = d3.axisRight(legendScale)
-        .ticks(8)  // Increased number of ticks
-        .tickFormat(d => metric === 'temp' ? d.toFixed(2) + '°C' : d.toFixed(0));
+    const estrusDays = [2.5, 6.5, 10.5, 14.5]; 
 
-    legend.append("g")
-        .attr("transform", `translate(${legendWidth}, 0)`)
-        .call(legendAxis);
-}
+   
 
-// Function to update visualization
-async function updateVisualization() {
-    const gender = d3.select("#genderSelect").property("value");
-    const mouseId = d3.select("#mouseSelect").property("value");
-    const metric = d3.select("#metricSelect").property("value");
     
+
+
+    async function updateVisualization(selectedMouse) {
+    const gender = d3.select("#genderSelect").property("value");
+    const fileName = `${gender}_temp.csv`;
+    const tooltip = d3.select(".tooltip");
+
     try {
-        const fileName = `${gender}_${metric}.csv`;
         const response = await d3.csv(fileName);
-        
-        // Process minute-level data into hourly averages
         const minutesPerDay = 1440;
         const minutesPerHour = 60;
         const data = [];
+        let dayAverages = [];
 
-        // Get all mouse IDs for averaging
-        const allMouseIds = Object.keys(response[0]).filter(key => 
-            key.startsWith(gender === 'female' ? 'f' : 'm'));
+        const allMouseIds = Object.keys(response[0]).filter(key => key.startsWith(gender === 'female' ? 'f' : 'm'));
 
-        // Process each day
         for (let day = 0; day < 14; day++) {
-            const dayStart = day * minutesPerDay;
-            const dayData = [];
+            let dayTemps = [];
 
-            // Process each hour
             for (let hour = 0; hour < 24; hour++) {
-                const hourStart = dayStart + (hour * minutesPerHour);
+                const hourStart = day * minutesPerDay + hour * minutesPerHour;
                 const hourEnd = hourStart + minutesPerHour;
-                
+
                 let hourValues;
-                if (mouseId === 'Average') {
-                    // Calculate average across all mice for this time period
-                    hourValues = response
-                        .slice(hourStart, hourEnd)
+                
+                if (selectedMouse === 'Average') {
+                    hourValues = response.slice(hourStart, hourEnd)
                         .map(row => {
-                            const mouseValues = allMouseIds.map(id => parseFloat(row[id]))
-                                .filter(val => !isNaN(val));
-                            return d3.mean(mouseValues);
+                            const mouseValues = allMouseIds.map(id => parseFloat(row[id])).filter(val => !isNaN(val));
+                            return mouseValues.length > 0 ? d3.mean(mouseValues) : null;
                         })
-                        .filter(val => !isNaN(val));
+                        .filter(val => val !== null);
                 } else {
-                    // Single mouse data
-                    hourValues = response
-                        .slice(hourStart, hourEnd)
-                        .map(row => parseFloat(row[mouseId]))
+                    hourValues = response.slice(hourStart, hourEnd)
+                        .map(row => parseFloat(row[selectedMouse]))
                         .filter(val => !isNaN(val));
                 }
 
-                // Calculate average for the hour
-                const hourAvg = hourValues.length > 0 
-                    ? d3.mean(hourValues)
-                    : null;
+                const avgTemp = hourValues.length > 0 ? d3.mean(hourValues) : null;
+                if (avgTemp !== null) {
+                    dayTemps.push(avgTemp);
+                }
 
-                dayData.push({
+                data.push({
                     day: day + 1,
                     hour: hour,
-                    value: hourAvg,
-                    isLightOn: hour >= 12 // Light cycle starts at 0 (off)
+                    value: avgTemp
                 });
             }
-            data.push(...dayData);
+
+            if (dayTemps.length > 0) {
+                dayAverages.push({ day: day + 1, avgTemp: d3.mean(dayTemps) });
+            }
         }
 
-        // Clear previous elements
+        // Sort by temperature & get 4 hottest days
+        const hottestDays = dayAverages
+            .sort((a, b) => b.avgTemp - a.avgTemp)
+            .slice(0, 4)
+            .map(d => d.day);
+
         svg.selectAll(".data-point").remove();
-        svg.selectAll(".estrus-marker").remove();
+        svg.selectAll(".hottest-label-overlay").remove(); 
 
-        // Calculate rectangle dimensions
-        const cellWidth = (width - margin.left - margin.right) / 24;
-        const cellHeight = (height - margin.top - margin.bottom) / 14;
+        // Show the "Show Estrus Days" button only when viewing "Mouse: Average" for females
+        if (selectedMouse === "Average" && gender === "female") {
+            d3.select("#estrusToggleButton").style("display", "inline-block");
+        } else {
+            d3.select("#estrusToggleButton").style("display", "none");
+            showEstrus = false; // Reset estrus toggle when switching away
+            d3.select("#estrusToggleButton").text("Show Estrus Days");
+        }
 
-        // Create cells for the heatmap
+        // Render heatmap
         svg.selectAll(".data-point")
             .data(data)
             .enter()
             .append("rect")
             .attr("class", "data-point")
             .attr("x", d => xScale(d.hour))
-            .attr("y", d => yScale(d.day))
-            .attr("width", cellWidth)
-            .attr("height", cellHeight)
-            .attr("fill", d => {
-                if (d.value === null) return "#ccc";
-                return metric === 'temp' 
-                    ? tempColorScale(d.value) 
-                    : activityColorScale(d.value);
-            })
-            .on("mouseover", function(event, d) {
-                const tooltip = d3.select(".tooltip");
+            .attr("y", d => yScale(d.day))  
+            .attr("width", (width - margin.left - margin.right) / 24)
+            .attr("height", (height - margin.top - margin.bottom) / 14)
+            .attr("fill", d => d.value === null ? "#ccc" : tempColorScale(d.value))
+            .on("mouseover", (event, d) => {
                 tooltip.style("display", "block")
-                    .html(`Day ${d.day}<br>Hour ${d.hour}:00<br>
-                          ${metric === 'temp' ? 'Temperature' : 'Activity'}: 
-                          ${d.value ? d.value.toFixed(2) : 'N/A'}
-                          ${metric === 'temp' ? '°C' : ''}<br>
-                          Light: ${d.isLightOn ? 'On' : 'Off'}`)
-                    .style("left", (event.pageX + 10) + "px")
+                    .html(`Day: ${d.day}<br>Hour: ${d.hour}:00<br>Temperature: ${d.value?.toFixed(2) || 'N/A'}°C`);
+            })
+            .on("mousemove", (event) => {
+                tooltip.style("left", (event.pageX + 10) + "px")
                     .style("top", (event.pageY - 10) + "px");
             })
-            .on("mouseout", function() {
-                d3.select(".tooltip").style("display", "none");
+            .on("mouseout", () => {
+                tooltip.style("display", "none");
             });
-            
 
-        // Add estrus markers for female mice
-        if (gender === 'female') {
-            // Add estrus markers
-            [2, 6, 10, 14].forEach(day => {
-                svg.append("text")
-                    .attr("class", "estrus-marker")
-                    .attr("x", width - margin.right + 10)
-                    .attr("y", yScale(day) + ((height - margin.top - margin.bottom) / 28)) // Center in cell
-                    .text("★");
-            });
-        
-            // Add estrus legend
-            svg.append("text")
-                .attr("class", "estrus-marker")
-                .attr("x", width - margin.right + 10)
-                .attr("y", margin.top - 10)
-                .text("★");
-                
-            svg.append("text")
-                .attr("class", "estrus-legend")
-                .attr("x", width - margin.right + 25)
-                .attr("y", margin.top - 10)
-                .text("Estrus");
-        }
+   
+            const labelOverlays = svg.selectAll(".hottest-label-overlay")
+                .data(hottestDays)
+                .enter()
+                .append("rect")
+                .attr("class", "hottest-label-overlay")
+                .attr("x", margin.left - 60) // Position it over the Y-axis labels
+                .attr("y", d => yScale(d-0.5)) // 🔹 Align with Y-axis label position
+                .attr("width", 55) // Adjust width to cover the text
+                .attr("height", (height - margin.top - margin.bottom) / 14)
+                .attr("fill", "gray") // Gray overlay
+                .attr("opacity", 0.3)
+                .attr("pointer-events", "none");
 
-        // Add color legend
-        addColorLegend(metric === 'temp' ? tempColorScale : activityColorScale, metric);
+      
 
+        addColorLegend(tempColorScale);
     } catch (error) {
         console.error("Error loading data:", error);
     }
 }
 
-// Initialize mouse select options
-function updateMouseOptions() {
-    const gender = d3.select("#genderSelect").property("value");
-    const mouseIds = gender === 'female' 
-        ? ['Average', 'f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'f13']
-        : ['Average', 'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9', 'm10', 'm11', 'm12', 'm13'];
-    
-    const mouseSelect = d3.select("#mouseSelect");
-    mouseSelect.selectAll("option").remove();
-    
-    mouseIds.forEach(id => {
-        mouseSelect.append("option")
-            .attr("value", id)
-            .text(id);
-    });
+
+
+
+
+function addColorLegend(scale) {
+    svg.selectAll(".legend").remove();
+
+    const legendWidth = 20;
+    const legendHeight = height - margin.top - margin.bottom;
+    const legendX = width - margin.right + 60;
+    const legendY = margin.top;
+
+    const numSteps = 6;
+    const stepSize = (scale.domain()[1] - scale.domain()[0]) / numSteps;
+    const legendValues = d3.range(scale.domain()[0], scale.domain()[1] + stepSize, stepSize); // No reverse order
+
+    const legend = svg.append("g")
+        .attr("class", "legend")
+        .attr("transform", `translate(${legendX}, ${legendY})`);
+
+    // Append discrete color blocks
+    legend.selectAll("rect")
+        .data(legendValues)
+        .enter()
+        .append("rect")
+        .attr("x", 0)
+        .attr("y", (d, i) => (legendHeight / numSteps) * i)
+        .attr("width", legendWidth)
+        .attr("height", legendHeight / numSteps)
+        .style("fill", d => scale(d))
+        .style("stroke", "black");
+
+    // Legend scale
+    const legendScale = d3.scaleLinear()
+        .domain(scale.domain()) 
+        .range([legendHeight, 0]);
+
+    // Append legend axis
+    const legendAxis = d3.axisRight(legendScale)
+        .ticks(numSteps)
+        .tickFormat(d => d.toFixed(1) + "°C");
+
+    legend.append("g")
+        .attr("transform", `translate(${legendWidth}, 0)`)
+        .call(legendAxis);
+
+    // Add legend title
+    legend.append("text")
+        .attr("x", -10)
+        .attr("y", -10)
+        .attr("font-size", "14px")
+        .attr("font-weight", "bold")
+        .text("Temperature (°C)");
 }
 
-// Event listeners
-d3.select("#genderSelect").on("change", () => {
-    updateMouseOptions();
-    updateVisualization();
-});
 
-d3.select("#mouseSelect").on("change", updateVisualization);
-d3.select("#metricSelect").on("change", updateVisualization);
 
-// Initialize
-updateMouseOptions();
-updateVisualization();
+
+
+
+    d3.select("#genderSelect").on("change", () => {
+        updateMouseSlider();
+        onMouseSliderChange();
+    });
+
+    d3.select("#mouseSlider").on("input", onMouseSliderChange);
+
+    let autoScrollInterval = null;
+    let isPlaying = false;
+
+    function startAutoScroll() {
+        if (isPlaying) return; // Prevent multiple intervals
+        isPlaying = true;
+        d3.select("#playButton").text("Pause");
+
+        autoScrollInterval = setInterval(() => {
+            const slider = d3.select("#mouseSlider");
+            let newValue = parseInt(slider.property("value")) + 1;
+            const maxValue = parseInt(slider.attr("max"));
+
+            if (newValue > maxValue) {
+                stopAutoScroll(); // Stop auto-scroll completely
+                d3.select("#playButton").text("Replay"); // Indicate it has reached the end
+            } else {
+                slider.property("value", newValue);
+                onMouseSliderChange(); // Update visualization
+            }
+        }, 2000); // Change every 1 second
+    }
+
+    function stopAutoScroll() {
+        clearInterval(autoScrollInterval);
+        isPlaying = false;
+        d3.select("#playButton").text("Play");
+    }
+
+    function toggleAutoScroll() {
+        const slider = d3.select("#mouseSlider");
+        if (isPlaying) {
+            stopAutoScroll();
+        } else {
+            // Reset to first mouse if at the last one
+            if (parseInt(slider.property("value")) === parseInt(slider.attr("max"))) {
+                slider.property("value", 0);
+                onMouseSliderChange();
+            }
+            startAutoScroll();
+        }
+    }
+
+    function addHottestDaysLegend() {
+    // Remove existing legend to prevent duplicates
+    svg.selectAll(".hottest-days-legend").remove();
+
+    // Define legend position (above the heatmap)
+    const legendX = margin.left + (width - margin.right) / 2 - 50; // Centered
+    const legendY = margin.top - 30; // Move above the heatmap
+
+    // Create a group for the legend
+    const legendGroup = svg.append("g")
+        .attr("class", "hottest-days-legend")
+        .attr("transform", `translate(${legendX}, ${legendY})`);
+
+    // Add the gray-bordered box sample
+    legendGroup.append("rect")
+        .attr("width", 55)
+        .attr("height", 20)
+        .attr("fill", "gray") // Transparent inside
+        .attr("opacity", 0.3)
+        .attr("stroke", "gray") // Gray border
+        .attr("stroke-width", 2);
+
+    // Add text label next to the box
+    legendGroup.append("text")
+        .attr("x", 65)
+        .attr("y", 15)
+        .attr("font-size", "14px")
+        .attr("font-weight", "bold")
+        .text("One of the four hottest days (Avg. Temp)");
+}
+
+    d3.select("#playButton").on("click", toggleAutoScroll);
+
+    updateMouseSlider();
+    onMouseSliderChange();
+    addHottestDaysLegend();
+    
 </script>
 </body>
 </html>
+
