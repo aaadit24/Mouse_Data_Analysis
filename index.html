@@ -81,7 +81,7 @@
     const yScale = d3.scaleLinear().domain([1, 15]).range([margin.top, height - margin.bottom]);
 
     const tempColorScale = d3.scaleSequential()
-    .domain([35.5, 38.5]) 
+    .domain([38.5, 35.5]) 
     .interpolator(d3.interpolateRdYlBu); 
 
 
@@ -248,10 +248,13 @@ function addColorLegend(scale) {
     const legendHeight = height - margin.top - margin.bottom;
     const legendX = width - margin.right + 60;
     const legendY = margin.top;
-
     const numSteps = 6;
-    const stepSize = (scale.domain()[1] - scale.domain()[0]) / numSteps;
-    const legendValues = d3.range(scale.domain()[0], scale.domain()[1] + stepSize, stepSize); // No reverse order
+    
+    // For a reversed domain, calculate step size from high to low.
+    const d0 = scale.domain()[0]; // 38.5
+    const d1 = scale.domain()[1]; // 35.5
+    const stepSize = (d0 - d1) / numSteps; // e.g. (38.5-35.5)/6 = 0.5
+    const legendValues = d3.range(d0, d1 - stepSize / 2, -stepSize);  // descending array
 
     const legend = svg.append("g")
         .attr("class", "legend")
@@ -269,9 +272,9 @@ function addColorLegend(scale) {
         .style("fill", d => scale(d))
         .style("stroke", "black");
 
-    // Legend scale
+    // Legend scale remains consistent with the reversed domain.
     const legendScale = d3.scaleLinear()
-        .domain(scale.domain()) 
+        .domain([d1, d0]) 
         .range([legendHeight, 0]);
 
     // Append legend axis
@@ -291,9 +294,6 @@ function addColorLegend(scale) {
         .attr("font-weight", "bold")
         .text("Temperature (°C)");
 }
-
-
-
 
 
 
