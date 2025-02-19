@@ -40,6 +40,10 @@
             fill: #ff69b4;
             font-size: 12px;
         }
+        .estrus-legend {
+            font-size: 12px;
+            fill: #000;
+        }
     </style>
 </head>
 <body>
@@ -281,13 +285,27 @@ async function updateVisualization() {
 
         // Add estrus markers for female mice
         if (gender === 'female') {
+            // Add estrus markers
             [2, 6, 10, 14].forEach(day => {
                 svg.append("text")
                     .attr("class", "estrus-marker")
                     .attr("x", width - margin.right + 10)
-                    .attr("y", yScale(day))
-                    .text("★ Estrus");
+                    .attr("y", yScale(day) + ((height - margin.top - margin.bottom) / 28)) // Center in cell
+                    .text("★");
             });
+        
+            // Add estrus legend
+            svg.append("text")
+                .attr("class", "estrus-marker")
+                .attr("x", width - margin.right + 10)
+                .attr("y", margin.top - 10)
+                .text("★");
+                
+            svg.append("text")
+                .attr("class", "estrus-legend")
+                .attr("x", width - margin.right + 25)
+                .attr("y", margin.top - 10)
+                .text("Estrus");
         }
 
         // Add color legend
