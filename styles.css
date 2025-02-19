@@ -1,0 +1,90 @@
+/* General Layout and Fonts */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f8f9fa;
+    margin: 20px;
+    line-height: 1.6;
+    color: #333;
+}
+
+h1 {
+    font-size: 28px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.controls {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 10px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.controls select {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    background: white;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.controls select:hover {
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
+}
+
+.light-cycle {
+    text-align: center;
+    font-size: 14px;
+    color: #666;
+    margin-top: 10px;
+}
+
+.tooltip {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #ddd;
+    padding: 8px;
+    border-radius: 4px;
+    pointer-events: none;
+    font-size: 12px;
+    display: none;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+
+.tooltip.show {
+    opacity: 1;
+    transform: translateY(-5px);
+}
+
+.data-point {
+    transition: fill 0.2s ease-in-out, stroke-width 0.2s ease-in-out;
+    rx: 5px;
+}
+
+.data-point:hover {
+    stroke: #000;
+    stroke-width: 1.5px;
+    fill-opacity: 0.7;
+    filter: drop-shadow(2px 2px 5px rgba(0, 0, 0, 0.2));
+}
+
+.estrus-marker {
+    font-size: 14px;
+    fill: #ff69b4;
+    font-weight: bold;
+}
+
+.estrus-legend {
+    font-size: 14px;
+    fill: #000;
+    font-weight: bold;
+}
